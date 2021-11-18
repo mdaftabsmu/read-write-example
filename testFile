@@ -1,0 +1,1543 @@
+<%!
+public String activeMakeSql(sasnode.SelectionCriteriaObject o, String which, String national, String accred, String multiYear, String sYear, String begin_year, String end_year, String year_type, String sQtr, String region, String state, String ssa_county_id, String ssa_state_cd, String providersList, String deficiency_tag_array[], String surveyType, String accredString, String sdeemed, String joinBy, int sortBy) {
+  String sSQL;
+  int ii;
+  sSQL = "";
+
+  sSQL = sSQL + " SELECT \n";
+
+  if (national == "") {
+    if (region == "") {
+      sSQL = sSQL + "	R.cd_id, \n";
+      sSQL = sSQL + "	'(' || SUBSTR(R.cd_desc, 1, STRPOS(R.cd_desc, ' ') - 1) || ') ' || INITCAP(SUBSTR(R.cd_desc, STRPOS(R.cd_desc, ' ') + 1)) AS region, \n";
+    }
+    else if (state == "") {
+
+      sSQL = sSQL + "ST.cd_id,  \n";
+      sSQL = sSQL + "INITCAP(ST.cd_desc) AS state,  \n";
+      if (multiYear.compareToIgnoreCase("YES") == 0) {
+        sSQL = sSQL + "		vlist.year, \n";
+      }
+      if (accred.compareToIgnoreCase("YES") == 0 && multiYear.compareToIgnoreCase("YES") != 0) {
+        sSQL = sSQL + "		COALESCE(vlist.acrdtn_type_cd,'0') AS acrdtn_type_cd, \n";
+        sSQL = sSQL + "		COALESCE(vlist.type_cd_desc,'NONE') AS type_cd_desc, \n";
+      }
+
+      sSQL = sSQL + "COALESCE(vlist.num_providers,0) AS num_providers  \n";
+
+      if (region == "all") {
+        if (which.compareToIgnoreCase("2") == 0) {
+          sSQL = sSQL + " 	, COALESCE(AA.num_clients, 0) AS num_clients \n";
+        }
+
+        else if (which.compareToIgnoreCase("0") == 0) {
+          sSQL = sSQL + " 	, COALESCE(num_residents, 0) AS num_residents \n";
+        }
+      }
+
+      sSQL = sSQL + "FROM \n";
+      sSQL = sSQL + "csp_state_cd ST, \n";
+      sSQL = sSQL + "(SELECT  \n";
+      sSQL = sSQL + "		ST.cd_id, \n";
+      sSQL = sSQL + "		INITCAP(ST.cd_desc) AS state, \n";
+
+    }
+    else if (ssa_county_id == "") {
+      sSQL = sSQL + "	INITCAP(COALESCE(C.cd_desc, '')) || ' (' || P.state_rgn_cd || ')' AS county,  \n";
+      sSQL = sSQL + "	P.state_cd AS ssa_state_cd,  \n";
+      sSQL = sSQL + "	P.state_rgn_cd AS ssa_cnty_cd,  \n";
+    }
+    else if (state != "") {
+      sSQL = sSQL + "	P.prvdr_intrnl_num,  \n";
+      sSQL = sSQL + "	P.prvdr_num, \n";
+      sSQL = sSQL + "	P.fac_name as provider, \n";
+    }
+
+    if (multiYear.compareToIgnoreCase("YES") == 0) {
+      sSQL = sSQL + "		Q.year, \n";
+    }
+    if (accred.compareToIgnoreCase("YES") == 0 && multiYear.compareToIgnoreCase("YES") != 0) {
+      sSQL = sSQL + "		COALESCE(A.acrdtn_type_cd, '0') AS acrdtn_type_cd, \n";
+      sSQL = sSQL + "		COALESCE((CASE WHEN A.type_cd_desc='NONE' THEN 'State Accredited' ELSE A.type_cd_desc END), 'State Accredited') AS type_cd_desc, \n";
+    }
+
+    sSQL = sSQL + "		COUNT(DISTINCT P.prvdr_intrnl_num) AS num_providers \n";
+  }
+  else {
+    sSQL = sSQL + "	'(' || SUBSTR(R.cd_desc, 1, STRPOS(R.cd_desc, ' ') - 1) || ') ' || INITCAP(SUBSTR(R.cd_desc, STRPOS(R.cd_desc, ' ') + 1)) AS region, \n";
+    sSQL = sSQL + "	INITCAP(ST.cd_desc) AS state,  \n";
+    sSQL = sSQL + "	P.prvdr_intrnl_num,  \n";
+    sSQL = sSQL + "	P.prvdr_num, \n";
+    sSQL = sSQL + "	P.fac_name as provider, \n";
+    sSQL = sSQL + "	P.city_name as city \n";
+  }
+  sSQL = sSQL + " FROM \n";
+
+  if (accred.compareToIgnoreCase("YES") == 0 && multiYear.compareToIgnoreCase("YES") != 0) {
+    sSQL = sSQL + "		acrdtn_type_cd_lookup A, \n";
+  }
+
+  if (national == "") {
+    if (region == "") {
+      sSQL = sSQL + "	csp_cms_rgn_cd R, \n";
+    }
+    else if (state == "") {
+      sSQL = sSQL + "	csp_state_cd ST, \n";
+    }
+    else if (ssa_county_id == "") {
+      sSQL = sSQL + "	csp_state_rgn_cd C, \n";
+    }
+  }
+  else {
+    sSQL = sSQL + "	csp_cms_rgn_cd R, \n";
+    sSQL = sSQL + "	csp_state_cd ST, \n";
+  }
+
+  if (o.getExtentOfSurvey() != "") {
+
+    sSQL = sSQL + "	(SELECT \n";
+    if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+
+    sSQL = sSQL + " 	CT.prvdr_intrnl_num \n";
+    sSQL = sSQL + "	FROM certification_summary CT, \n";
+    sSQL = sSQL + " qtr_dates Q \n";
+    sSQL = sSQL + " WHERE \n";
+    sSQL = sSQL + "	Q.year_type = '" + year_type + "' \n";
+    if (multiYear.compareToIgnoreCase("YES") == 0) {
+      sSQL = sSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+    }
+    else {
+      sSQL = sSQL + "		AND Q.year = '" + sYear + "' \n";
+    }
+    sSQL = sSQL + "	AND Q.qtr = '" + sQtr + "' \n";
+    sSQL = sSQL + "	AND CT.CRTFCTN_DT >= Q.start_dt \n";
+    sSQL = sSQL + "	AND CT.CRTFCTN_DT <= Q.end_dt \n";
+    sSQL = sSQL + "	AND CT.CRTFCTN_DT IS NOT NULL \n";
+    sSQL = sSQL + "	AND CT.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+    sSQL = sSQL + SelectionCriteriaSQLNew(o, "C", providersList, deficiency_tag_array, "SS", surveyType);
+
+    sSQL = sSQL + " GROUP BY \n";
+    if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+
+    sSQL = sSQL + "	CT.prvdr_intrnl_num \n";
+    sSQL = sSQL + "	) CERT, \n";
+  }
+  if (o.getScopeSeverity() != "" || o.getDeficiencyTag() != "" || o.getRegulatoryGroup() != "" || o.getEmtalaGroup() != "" || o.getSubstandardQuality().compareTo("YES") == 0 || o.getLevelList().compareTo("") != 0 || o.getJeopardyFl().compareTo("") != 0) {
+
+    sSQL = sSQL + "	(SELECT \n";
+    if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+    sSQL = sSQL + "		D.prvdr_intrnl_num \n";
+    sSQL = sSQL + "	FROM deficiency_summary D, \n";
+    sSQL = sSQL + "	provider_summary P, \n";
+
+    if (o.getSurvTypeArray() != null) {
+      sSQL = sSQL + "	survey_summary M, \n";
+    }
+
+    sSQL = sSQL + " qtr_dates Q \n";
+    sSQL = sSQL + " WHERE \n";
+    sSQL = sSQL + "	Q.year_type = '" + year_type + "' \n";
+    if (multiYear.compareToIgnoreCase("YES") == 0) {
+      sSQL = sSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+    }
+    else {
+      sSQL = sSQL + "		AND Q.year = '" + sYear + "' \n";
+    }
+    sSQL = sSQL + "	AND Q.qtr = '" + sQtr + "' \n";
+
+    if (o.getSurvTypeArray() != null) {
+      sSQL = sSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+      sSQL = sSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+      sSQL = sSQL + "	AND M.srvy_dt IS NOT NULL \n";
+      sSQL = sSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+      sSQL = sSQL + "	AND D.evnt_id = M.evnt_id \n";
+
+      String display = "";
+      for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+        if (ii > 0) display = display + ", ";
+        if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+          display = display + "Q";
+        }
+        else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+          display = display + "T";
+        }
+      }
+
+      if (display.compareToIgnoreCase("Q") == 0) {
+        sSQL = sSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+      }
+      else if (display.compareToIgnoreCase("T") == 0) {
+        sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+      }
+      else {
+        sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+      }
+    }
+
+    sSQL = sSQL + "	AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+    sSQL = sSQL + "	AND D.srvy_dt >= Q.start_dt \n";
+    sSQL = sSQL + "	AND D.srvy_dt <= Q.end_dt \n";
+    sSQL = sSQL + "	AND D.srvy_dt IS NOT NULL \n";
+
+    if (o.getDeficiencyTag().indexOf("K") != -1) {
+      sSQL = sSQL + " AND (D.srvy_type_cd='H' OR D.srvy_type_cd = 'L')\n";
+
+    }
+    else {
+      sSQL = sSQL + " AND D.srvy_type_cd='H' \n";
+
+    }
+
+    sSQL = sSQL + "	AND P.prvdr_intrnl_num=D.prvdr_intrnl_num \n";
+
+    sSQL = sSQL + "	AND (D.srvy_dt < P.trmntn_exprtn_dt \n";
+    sSQL = sSQL + "	OR P.trmntn_exprtn_dt IS NULL) \n";
+    sSQL = sSQL + "	AND ((D.srvy_prpse_cd > '1' AND D.srvy_dt >= P.orgnl_prtcptn_dt) \n";
+    sSQL = sSQL + "	OR (D.srvy_prpse_cd = '1') \n";
+    sSQL = sSQL + "	OR (D.srvy_prpse_cd is null AND D.srvy_dt >= P.orgnl_prtcptn_dt)) \n";
+    sSQL = sSQL + SelectionCriteriaSQLNew(o, "D", providersList, deficiency_tag_array, "D", surveyType);
+
+    sSQL = sSQL + " GROUP BY \n";
+    if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+
+    sSQL = sSQL + "	D.prvdr_intrnl_num \n";
+    sSQL = sSQL + "	) DEF, \n";
+  }
+  sSQL = sSQL + "		provider_summary P, \n";
+
+  if (o.getSurvTypeArray() != null) {
+    sSQL = sSQL + "	survey_summary SS, \n";
+  }
+  else if (surveyType.compareTo("") != 0) {
+    sSQL = sSQL + "	survey_summary SS, \n";
+  }
+
+  sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "FRM");
+
+  sSQL = sSQL + "		qtr_dates Q \n";
+
+  sSQL = sSQL + "	WHERE \n";
+  sSQL = sSQL + "		Q.year_type = '" + year_type + "' \n";
+
+  if (surveyType.compareTo("") != 0) {
+    sSQL = sSQL + "		AND SS.prvdr_intrnl_num = P.prvdr_intrnl_num --jz'\n";
+    sSQL = sSQL + "--" + (surveyType.compareTo("")) + "\n";
+    sSQL = sSQL + "		AND SS.srvy_dt >= Q.start_dt \n";
+    sSQL = sSQL + "		AND SS.srvy_dt <= Q.end_dt \n";
+    if (o.getDeficiencyTag().indexOf("K") != -1) {
+      sSQL = sSQL + "		AND SS.srvy_type_cd IN ('H', 'L') \n";
+    }
+    else {
+      sSQL = sSQL + "		AND SS.srvy_type_cd = 'H' \n";
+    }
+    sSQL = sSQL + "		AND SS.cyc_visit_num = 1 \n";
+    sSQL = sSQL + "		AND ( SS.srvy_prpse_cd != '5' OR SS.srvy_prpse_cd IS NULL ) \n";
+
+    sSQL = sSQL + "	AND (SS.srvy_dt < P.trmntn_exprtn_dt \n";
+    sSQL = sSQL + "	OR P.trmntn_exprtn_dt IS NULL) \n";
+    sSQL = sSQL + "	AND ((SS.srvy_prpse_cd > '1' AND SS.srvy_dt >= P.orgnl_prtcptn_dt) \n";
+    sSQL = sSQL + "	OR (SS.srvy_prpse_cd = '1') \n";
+    sSQL = sSQL + "	OR (SS.srvy_prpse_cd is null AND SS.srvy_dt >= P.orgnl_prtcptn_dt)) \n";
+  }
+
+  if (multiYear.compareToIgnoreCase("YES") == 0) {
+    sSQL = sSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+  }
+  else {
+    sSQL = sSQL + "		AND Q.year = '" + sYear + "' \n";
+  }
+
+  sSQL = sSQL + "		AND Q.qtr = '" + sQtr + "' \n";
+
+  if (o.getSurvTypeArray() != null) {
+    sSQL = sSQL + "	AND SS.srvy_dt >= Q.start_dt \n";
+    sSQL = sSQL + "	AND SS.srvy_dt <= Q.end_dt \n";
+    sSQL = sSQL + "	AND SS.srvy_dt IS NOT NULL \n";
+    sSQL = sSQL + "	AND P.prvdr_intrnl_num = SS.prvdr_intrnl_num	\n";
+
+    String display = "";
+    for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+      if (ii > 0) display = display + ", ";
+      if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+        display = display + "Q";
+      }
+      else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+        display = display + "T";
+      }
+    }
+
+    if (display.compareToIgnoreCase("Q") == 0) {
+      sSQL = sSQL + "	AND SS.qis_srvy_sw in ('Y') \n";
+    }
+    else if (display.compareToIgnoreCase("T") == 0) {
+      sSQL = sSQL + "	AND (SS.qis_srvy_sw is null or SS.qis_srvy_sw not in ('Y')) \n";
+    }
+    else {
+      sSQL = sSQL + "	AND (SS.qis_srvy_sw is null or SS.qis_srvy_sw not in ('Y') or SS.qis_srvy_sw in ('Y')) \n";
+    }
+  }
+
+  sSQL = sSQL + "		AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+  sSQL = sSQL + "		AND P.orgnl_prtcptn_dt <= Q.end_dt \n";
+  sSQL = sSQL + "		AND ( P.trmntn_exprtn_dt >= Q.start_dt \n";
+  sSQL = sSQL + "			OR P.trmntn_exprtn_dt IS NULL ) \n";
+
+  if (sdeemed.compareToIgnoreCase("YES") == 0) {
+
+    sSQL = sSQL + " AND P.DEEMED=1 AND P.ACRDTN_TYPE_CD IN (1,2) \n";
+  }
+
+  if (national == "") {
+    if (region == "") {
+      sSQL = sSQL + "	AND R.cd_id = P.rgn_cd \n";
+
+      sSQL = sSQL + "	AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+      sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+    else if (state == "") {
+      if (region.compareToIgnoreCase("all") != 0) sSQL = sSQL + "	AND P.rgn_cd = '" + region + "' \n";
+      sSQL = sSQL + "	AND ST.cd_id = P.state_cd \n";
+
+      sSQL = sSQL + "	AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+      sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+    else if (ssa_county_id == "") {
+      sSQL = sSQL + "	AND P.state_cd = '" + state + "' \n";
+      sSQL = sSQL + "	AND C.state_cd = P.state_cd  \n";
+      sSQL = sSQL + "	AND C.state_rgn_cd = P.state_rgn_cd  \n";
+
+      sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+    else if (state != "") {
+      sSQL = sSQL + "	AND P.state_cd = '" + state + "' \n";
+      if (ssa_county_id != "" && ssa_county_id.compareTo("0") != 0) sSQL = sSQL + "	AND P.state_rgn_cd = '" + ssa_county_id + "' \n";
+
+      sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+  }
+  else {
+    sSQL = sSQL + "	AND R.cd_id = P.rgn_cd \n";
+    sSQL = sSQL + "	AND ST.cd_id = P.state_cd \n";
+
+    sSQL = sSQL + "	AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+    sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+  }
+
+  if (accred.compareToIgnoreCase("YES") == 0) {
+    if (multiYear.compareToIgnoreCase("YES") != 0) {
+      sSQL = sSQL + "		AND A.prvdr_ctgry_cd = P.prvdr_ctgry_cd \n";
+      sSQL = sSQL + "		AND A.acrdtn_type_cd = P.acrdtn_type_cd \n";
+    }
+
+  }
+  if (accredString.compareTo("") != 0 && accredString != null) {
+    if (accredString.charAt(0) != '9') {
+      sSQL = sSQL + "	AND P.acrdtn_type_cd IN (" + param_w_quotes(accredString) + ") \n";
+
+    }
+  }
+  if (o.getExtentOfSurvey() != "") {
+    if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "	AND Q.year = CERT.year \n";
+
+    sSQL = sSQL + "	AND P.prvdr_intrnl_num=CERT.prvdr_intrnl_num \n";
+  }
+  if (o.getScopeSeverity() != "" || o.getDeficiencyTag() != "" || o.getRegulatoryGroup() != "" || o.getEmtalaGroup() != "" || o.getSubstandardQuality().compareTo("YES") == 0 || o.getLevelList().compareTo("") != 0 || o.getJeopardyFl().compareTo("") != 0) {
+    if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "	AND Q.year = DEF.year \n";
+
+    sSQL = sSQL + "	AND P.prvdr_intrnl_num=DEF.prvdr_intrnl_num \n";
+  }
+  sSQL = sSQL + SelectionCriteriaSQLNew(o, "P", providersList, deficiency_tag_array, "SS", surveyType);
+
+  if (national == "") {
+    sSQL = sSQL + "	GROUP BY \n";
+
+    if (multiYear.compareToIgnoreCase("YES") == 0) {
+      sSQL = sSQL + "		Q.year, \n";
+    }
+    if (accred.compareToIgnoreCase("YES") == 0 && multiYear.compareToIgnoreCase("YES") != 0) {
+      sSQL = sSQL + "		COALESCE(A.acrdtn_type_cd, '0'), \n";
+      sSQL = sSQL + "		COALESCE((CASE WHEN A.type_cd_desc='NONE' THEN 'State Accredited' ELSE A.type_cd_desc END), 'State Accredited'), \n";
+    }
+    if (region == "") {
+      sSQL = sSQL + "	R.cd_id, \n";
+      sSQL = sSQL + "	R.cd_desc \n";
+    }
+    else if (state == "") {
+      sSQL = sSQL + "	ST.cd_id,  \n";
+      sSQL = sSQL + "	ST.cd_desc  \n";
+    }
+    else if (ssa_county_id == "") {
+      sSQL = sSQL + "	C.cd_desc , \n";
+      sSQL = sSQL + "	P.state_cd, \n";
+      sSQL = sSQL + "	P.state_rgn_cd \n";
+    }
+    else if (state != "") {
+      sSQL = sSQL + "	P.prvdr_intrnl_num , \n";
+      sSQL = sSQL + "	P.fac_name, \n";
+      sSQL = sSQL + "	P.prvdr_num \n";
+    }
+
+    if (region == "") {
+
+}
+    else if (state == "") {
+      sSQL = sSQL + ") vlist  \n";
+
+      if (region == "all") {
+        sSQL = sSQL + "	, ( SELECT \n";
+        sSQL = sSQL + "		cd_id, state \n";
+
+        if (which.compareToIgnoreCase("2") == 0) {
+          sSQL = sSQL + " 	,SUM(C.CNSUS_RSDNT_CNT) as num_clients \n";
+        }
+
+        else if (which.compareToIgnoreCase("0") == 0) {
+          sSQL = sSQL + " 	,SUM(C.CNSUS_RSDNT_CNT) as num_residents \n";
+        }
+
+        sSQL = sSQL + " FROM ( \n";
+
+        sSQL = sSQL + " SELECT DISTINCT\n";
+
+        sSQL = sSQL + "		ST.cd_id,\n";
+        sSQL = sSQL + "		INITCAP(ST.cd_desc) AS state,\n";
+        sSQL = sSQL + "		P.prvdr_intrnl_num,  \n";
+        sSQL = sSQL + "		P.prvdr_num, \n";
+        sSQL = sSQL + " 	MAX(C2.crtfctn_dt) as crtfctn_dt  \n";
+
+        sSQL = sSQL + "FROM \n";
+
+        sSQL = sSQL + "	csp_state_cd ST, \n";
+
+        if (o.getExtentOfSurvey() != "") {
+
+          sSQL = sSQL + "	(SELECT \n";
+          if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+
+          sSQL = sSQL + " 	CT.prvdr_intrnl_num \n";
+          sSQL = sSQL + "	FROM certification_summary CT, \n";
+          sSQL = sSQL + " qtr_dates Q \n";
+          sSQL = sSQL + " WHERE \n";
+          sSQL = sSQL + "	Q.year_type = '" + year_type + "' \n";
+          if (multiYear.compareToIgnoreCase("YES") == 0) {
+            sSQL = sSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+          }
+          else {
+            sSQL = sSQL + "		AND Q.year = '" + sYear + "' \n";
+          }
+          sSQL = sSQL + "	AND Q.qtr = '" + sQtr + "' \n";
+          sSQL = sSQL + "	AND CT.CRTFCTN_DT >= Q.start_dt \n";
+          sSQL = sSQL + "	AND CT.CRTFCTN_DT <= Q.end_dt \n";
+          sSQL = sSQL + "	AND CT.CRTFCTN_DT IS NOT NULL \n";
+          sSQL = sSQL + "	AND CT.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+          sSQL = sSQL + SelectionCriteriaSQLNew(o, "C", providersList, deficiency_tag_array, "S", surveyType);
+
+          sSQL = sSQL + " GROUP BY \n";
+          if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+
+          sSQL = sSQL + "	CT.prvdr_intrnl_num \n";
+          sSQL = sSQL + "	) CERT, \n";
+        }
+        if (o.getScopeSeverity() != "" || o.getDeficiencyTag() != "" || o.getRegulatoryGroup() != "" || o.getEmtalaGroup() != "" || o.getSubstandardQuality().compareTo("YES") == 0 || o.getLevelList().compareTo("") != 0 || o.getJeopardyFl().compareTo("") != 0) {
+
+          sSQL = sSQL + "	(SELECT \n";
+          if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+          sSQL = sSQL + "		D.prvdr_intrnl_num \n";
+          sSQL = sSQL + "	FROM deficiency_summary D, \n";
+          sSQL = sSQL + "	provider_summary P, \n";
+
+          if (o.getSurvTypeArray() != null) {
+            sSQL = sSQL + "	survey_summary M, \n";
+          }
+
+          sSQL = sSQL + " qtr_dates Q \n";
+          sSQL = sSQL + " WHERE \n";
+          sSQL = sSQL + "	Q.year_type = '" + year_type + "' \n";
+
+          if (multiYear.compareToIgnoreCase("YES") == 0) {
+            sSQL = sSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+          }
+          else {
+            sSQL = sSQL + "		AND Q.year = '" + sYear + "' \n";
+          }
+          sSQL = sSQL + "	AND Q.qtr = '" + sQtr + "' \n";
+
+          if (o.getSurvTypeArray() != null) {
+            sSQL = sSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+            sSQL = sSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+            sSQL = sSQL + "	AND M.srvy_dt IS NOT NULL \n";
+            sSQL = sSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+            sSQL = sSQL + "	AND D.evnt_id = M.evnt_id \n";
+
+            String display = "";
+            for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+              if (ii > 0) display = display + ", ";
+              if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+                display = display + "Q";
+              }
+              else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+                display = display + "T";
+              }
+            }
+
+            if (display.compareToIgnoreCase("Q") == 0) {
+              sSQL = sSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+            }
+            else if (display.compareToIgnoreCase("T") == 0) {
+              sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+            }
+            else {
+              sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+            }
+          }
+
+          sSQL = sSQL + "	AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+          sSQL = sSQL + "	AND D.srvy_dt >= Q.start_dt \n";
+          sSQL = sSQL + "	AND D.srvy_dt <= Q.end_dt \n";
+          sSQL = sSQL + "	AND D.srvy_dt IS NOT NULL \n";
+
+          if (o.getDeficiencyTag().indexOf("K") != -1) {
+            sSQL = sSQL + " AND (D.srvy_type_cd='H' OR D.srvy_type_cd = 'L')\n";
+            sSQL = sSQL + "	AND (D.srvy_cyc_cd = 'C' OR D.srvy_cyc_cd = 'S') \n";
+          }
+          else {
+            sSQL = sSQL + " AND D.srvy_type_cd='H' \n";
+            sSQL = sSQL + "	AND (D.srvy_cyc_cd = 'C' OR D.srvy_cyc_cd = 'S') \n";
+          }
+
+          sSQL = sSQL + "	AND P.prvdr_intrnl_num=D.prvdr_intrnl_num \n";
+
+          sSQL = sSQL + "	AND (D.srvy_dt < P.trmntn_exprtn_dt \n";
+          sSQL = sSQL + "	OR P.trmntn_exprtn_dt IS NULL) \n";
+          sSQL = sSQL + "	AND ((D.srvy_prpse_cd > '1' AND D.srvy_dt >= P.orgnl_prtcptn_dt) \n";
+          sSQL = sSQL + "	OR (D.srvy_prpse_cd = '1') \n";
+          sSQL = sSQL + "	OR (D.srvy_prpse_cd is null AND D.srvy_dt >= P.orgnl_prtcptn_dt)) \n";
+          sSQL = sSQL + SelectionCriteriaSQLNew(o, "D", providersList, deficiency_tag_array, "D", surveyType);
+
+          sSQL = sSQL + " GROUP BY \n";
+          if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "		Q.year, \n";
+
+          sSQL = sSQL + "	D.prvdr_intrnl_num \n";
+          sSQL = sSQL + "	) DEF, \n";
+        }
+
+        sSQL = sSQL + "	provider_summary P, \n";
+
+        if (o.getSurvTypeArray() != null) {
+          sSQL = sSQL + "	survey_summary M, \n";
+        }
+
+        sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "FRM");
+
+        sSQL = sSQL + "	survey_summary S, \n";
+        sSQL = sSQL + "	certification_summary C2, \n";
+        sSQL = sSQL + " qtr_dates Q \n";
+
+        sSQL = sSQL + "WHERE \n";
+        sSQL = sSQL + "		Q.year_type = '" + year_type + "' \n";
+        sSQL = sSQL + "		AND Q.year = '" + sYear + "' \n";
+        sSQL = sSQL + "		AND Q.qtr = '" + sQtr + "' \n";
+
+        if (o.getSurvTypeArray() != null) {
+          sSQL = sSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+          sSQL = sSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+          sSQL = sSQL + "	AND M.srvy_dt IS NOT NULL \n";
+          sSQL = sSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+
+          String display = "";
+          for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+            if (ii > 0) display = display + ", ";
+            if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+              display = display + "Q";
+            }
+            else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+              display = display + "T";
+            }
+          }
+
+          if (display.compareToIgnoreCase("Q") == 0) {
+            sSQL = sSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+          }
+          else if (display.compareToIgnoreCase("T") == 0) {
+            sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+          }
+          else {
+            sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+          }
+        }
+
+        sSQL = sSQL + "		AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+        sSQL = sSQL + "		AND P.orgnl_prtcptn_dt <= Q.end_dt \n";
+        sSQL = sSQL + "		AND ( P.trmntn_exprtn_dt >= Q.start_dt \n";
+        sSQL = sSQL + "		OR P.trmntn_exprtn_dt IS NULL )\n";
+        sSQL = sSQL + "		AND C2.crtfctn_dt <= Q.end_dt \n";
+        sSQL = sSQL + "		AND C2.crtfctn_dt IS NOT NULL \n";
+        sSQL = sSQL + "		AND S.srvy_cyc_cd = 'S' \n";
+
+        if (o.getDeficiencyTag().indexOf("K") != -1) {
+          sSQL = sSQL + "		AND S.srvy_type_cd IN ('H', 'L') \n";
+        }
+        else {
+          sSQL = sSQL + "		AND S.srvy_type_cd = 'H' \n";
+        }
+        sSQL = sSQL + "		AND ( S.srvy_prpse_cd != '5' OR S.srvy_prpse_cd IS NULL ) \n";
+
+        sSQL = sSQL + "		AND (S.srvy_dt < P.trmntn_exprtn_dt \n";
+        sSQL = sSQL + "		OR P.trmntn_exprtn_dt IS NULL) \n";
+        sSQL = sSQL + "		AND ((S.srvy_prpse_cd > '1' AND S.srvy_dt >= P.orgnl_prtcptn_dt) \n";
+        sSQL = sSQL + "		OR (S.srvy_prpse_cd = '1') \n";
+        sSQL = sSQL + "		OR (S.srvy_prpse_cd is null AND S.srvy_dt >= P.orgnl_prtcptn_dt)) \n";
+        sSQL = sSQL + "		AND S.PRVDR_INTRNL_NUM = P.PRVDR_INTRNL_NUM \n";
+        sSQL = sSQL + "		AND S.PRVDR_INTRNL_NUM = C2.PRVDR_INTRNL_NUM \n";
+        sSQL = sSQL + "		AND S.derive_crtfctn_dt = C2.crtfctn_dt \n";
+
+        if (o.getExtentOfSurvey() != "") {
+          if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "	AND Q.year = CERT.year \n";
+
+          sSQL = sSQL + "	AND P.prvdr_intrnl_num=CERT.prvdr_intrnl_num \n";
+        }
+        if (o.getScopeSeverity() != "" || o.getDeficiencyTag() != "" || o.getRegulatoryGroup() != "" || o.getEmtalaGroup() != "" || o.getSubstandardQuality().compareTo("YES") == 0 || o.getLevelList().compareTo("") != 0 || o.getJeopardyFl().compareTo("") != 0) {
+          if (multiYear.compareToIgnoreCase("YES") == 0) sSQL = sSQL + "	AND Q.year = DEF.year \n";
+
+          sSQL = sSQL + "	AND P.prvdr_intrnl_num=DEF.prvdr_intrnl_num \n";
+        }
+        sSQL = sSQL + SelectionCriteriaSQLNew(o, "P", providersList, deficiency_tag_array, "S", surveyType);
+
+        sSQL = sSQL + "	AND ST.cd_id = P.state_cd \n";
+
+        sSQL = sSQL + " AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+        sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+
+        sSQL = sSQL + "	GROUP BY \n";
+        sSQL = sSQL + "		ST.cd_id,  \n";
+        sSQL = sSQL + "		ST.cd_desc,  \n";
+
+        sSQL = sSQL + "	P.prvdr_intrnl_num , \n";
+        sSQL = sSQL + "	P.prvdr_num \n";
+        sSQL = sSQL + " )X,certification_summary C \n";
+        sSQL = sSQL + " WHERE X.PRVDR_INTRNL_NUM = C.PRVDR_INTRNL_NUM \n";
+        sSQL = sSQL + " AND X.crtfctn_dt=C.crtfctn_dt \n";
+
+        sSQL = sSQL + "	GROUP BY \n";
+
+        sSQL = sSQL + "	cd_id,  \n";
+        sSQL = sSQL + "	state  \n";
+        sSQL = sSQL + "	)AA \n";
+      }
+
+      if (joinBy.compareToIgnoreCase("N") == 0) {
+        sSQL = sSQL + " WHERE   ST.cd_id = vlist.cd_id\n";
+
+        if (region == "all") {
+          sSQL = sSQL + "	AND ST.cd_id = AA.cd_id \n";
+        }
+
+        sSQL = sSQL + "	AND ST.cd_id not in ('CN', 'FN', 'MX') \n";
+
+      }
+      else {
+        sSQL = sSQL + " WHERE   ST.cd_id = vlist.cd_id \n";
+        if (region == "all") {
+          sSQL = sSQL + "	AND ST.cd_id = AA.cd_id \n";
+        }
+      }
+    }
+
+    if (multiYear.compareToIgnoreCase("YES") == 0) {
+      sSQL = sSQL + "	ORDER BY \n";
+
+      if (region == "") {
+        sSQL = sSQL + "	cd_id, \n";
+      }
+
+      else if (state == "") {
+        sSQL = sSQL + "	cd_desc, \n";
+      }
+      else if (ssa_county_id == "") {
+        sSQL = sSQL + "	county, \n";
+      }
+      else if (state != "") {
+        sSQL = sSQL + "	P.fac_name, \n";
+        sSQL = sSQL + " P.prvdr_intrnl_num, \n";
+      }
+      sSQL = sSQL + "		year \n";
+    }
+    else if (accred.compareToIgnoreCase("YES") == 0) {
+      sSQL = sSQL + "	ORDER BY \n";
+
+      if (region == "")
+
+      {
+        sSQL = sSQL + "	cd_id, \n";
+      }
+
+      else if (state == "") {
+        sSQL = sSQL + "	cd_desc, \n";
+      }
+      else if (ssa_county_id == "") {
+        sSQL = sSQL + "	county, \n";
+      }
+      else if (state != "") {
+        sSQL = sSQL + "	P.fac_name, \n";
+        sSQL = sSQL + " P.prvdr_intrnl_num, \n";
+      }
+      sSQL = sSQL + "		acrdtn_type_cd \n";
+
+    }
+    else {
+      sSQL = sSQL + "	ORDER BY \n";
+      if (region == "")
+
+      {
+        sSQL = sSQL + "	cd_id \n";
+      }
+
+      else if (state == "") {
+        if (sortBy == 1 || sortBy == 2) {
+          sSQL = sSQL + "	cd_desc ";
+          if (sortBy == 2) sSQL = sSQL + "desc \n";
+          else sSQL = sSQL + "\n";
+        }
+        else {
+          switch (sortBy) {
+          case 3:
+            sSQL = sSQL + " num_providers \n";
+            break;
+          case 4:
+            sSQL = sSQL + " num_providers desc\n";
+            break;
+          }
+        }
+      }
+      else if (ssa_county_id == "") {
+        sSQL = sSQL + "	county \n";
+      }
+      else if (state != "") {
+        sSQL = sSQL + "	P.fac_name, \n";
+        sSQL = sSQL + " P.prvdr_intrnl_num \n";
+      }
+    }
+  }
+  else {
+    sSQL = sSQL + "	ORDER BY \n";
+    sSQL = sSQL + "		P.rgn_cd, \n";
+
+    sSQL = sSQL + "		ST.cd_desc, \n";
+    sSQL = sSQL + "		P.fac_name, \n";
+    sSQL = sSQL + " 	P.prvdr_intrnl_num, \n";
+    sSQL = sSQL + "		P.city_name \n";
+  }
+  return sSQL;
+}
+
+public String activeMakePerSql(sasnode.SelectionCriteriaObject o, String numProvs, String national, String accred, String multiYear, String sYear, String begin_year, String end_year, String year_type, String sQtr, String region, String state, String ssa_county_id, String ssa_state_cd, String provider_num, String providersList, String deficiency_tag_array[], String surveyType, int sortBy) {
+  String sSQL;
+  int ii;
+
+  sSQL = "";
+
+  if (national == "") {
+    sSQL = sSQL + "			SELECT \n";
+
+    if (region != "") {
+      sSQL = sSQL + "				P.rgn_cd, \n";
+    }
+    else if (state != "") {
+
+      sSQL = sSQL + "	ST.cd_id,  \n";
+      if (multiYear.compareToIgnoreCase("YES") != 0) sSQL = sSQL + "COALESCE(vlist.active_percent,0)  AS active_percent, \n";
+      sSQL = sSQL + "	COALESCE(vlist.active_providers,0) as active_providers \n";
+      sSQL = sSQL + "	FROM  \n";
+      sSQL = sSQL + "	csp_state_cd ST,  \n";
+      sSQL = sSQL + "	(SELECT \n";
+      sSQL = sSQL + "				P.state_cd, \n";
+    }
+    else if (ssa_county_id != "") {
+      sSQL = sSQL + "				P.state_cd, \n";
+      sSQL = sSQL + "				P.state_rgn_cd, \n";
+    }
+    else if (provider_num != "") {
+      sSQL = sSQL + "				P.prvdr_num, \n";
+    }
+
+    if (multiYear.compareToIgnoreCase("YES") != 0) sSQL = sSQL + "				ROUND((cast(" + numProvs + " as numeric) / COUNT(DISTINCT P.prvdr_intrnl_num)) * 100, 2) AS active_percent, \n";
+
+    sSQL = sSQL + "				COUNT(DISTINCT P.prvdr_intrnl_num) AS active_providers \n";
+
+    sSQL = sSQL + "			FROM \n";
+    sSQL = sSQL + "				provider_summary P, \n";
+
+    if (o.getSurvTypeArray() != null) {
+      sSQL = sSQL + "	survey_summary M, \n";
+    }
+
+    sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "FRM");
+
+    sSQL = sSQL + "				qtr_dates Q \n";
+    sSQL = sSQL + "			WHERE \n";
+    sSQL = sSQL + "				Q.year_type = '" + year_type + "' \n";
+
+    sSQL = sSQL + "				AND Q.year = '" + sYear + "' \n";
+    sSQL = sSQL + "				AND Q.qtr = '" + sQtr + "' \n";
+
+    if (o.getSurvTypeArray() != null) {
+      sSQL = sSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+      sSQL = sSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+      sSQL = sSQL + "	AND M.srvy_dt IS NOT NULL \n";
+      sSQL = sSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+
+      String display = "";
+      for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+        if (ii > 0) display = display + ", ";
+        if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+          display = display + "Q";
+        }
+        else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+          display = display + "T";
+        }
+      }
+
+      if (display.compareToIgnoreCase("Q") == 0) {
+        sSQL = sSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+      }
+      else if (display.compareToIgnoreCase("T") == 0) {
+        sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+      }
+      else {
+        sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+      }
+    }
+
+    sSQL = sSQL + "				AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+
+    if (region != "") {
+      sSQL = sSQL + "				AND P.rgn_cd = '" + region + "' \n";
+    }
+    else if (state != "") {
+      sSQL = sSQL + "				AND P.state_cd = '" + state + "' \n";
+    }
+    else if (ssa_county_id != "" && ssa_county_id.compareTo("0") != 0) {
+      sSQL = sSQL + "				AND P.state_cd = '" + ssa_state_cd + "' \n";
+      sSQL = sSQL + "				AND P.state_rgn_cd = '" + ssa_county_id + "' \n";
+    }
+    else if (provider_num != "") {
+      sSQL = sSQL + "				AND P.prvdr_intrnl_num = '" + provider_num + "' \n";
+    }
+
+    sSQL = sSQL + "				AND P.orgnl_prtcptn_dt <= Q.end_dt \n";
+    sSQL = sSQL + "				AND ( P.trmntn_exprtn_dt >= Q.start_dt \n";
+    sSQL = sSQL + "					OR P.trmntn_exprtn_dt IS NULL ) \n";
+
+    sSQL = sSQL + "	AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+    sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+
+    if (o.getViewCah().compareTo("Y") == 0 && providersList.compareTo("01") == 0) {
+      sSQL = sSQL + "	AND (P.hosp_fac_type_cd ='11' \n";
+      sSQL = sSQL + "	OR SUBSTR(P.prvdr_num,3,2) = '13') \n";
+    }
+    else if (o.getViewCah().compareTo("Y,N") != 0 && providersList.compareTo("01") == 0) {
+      sSQL = sSQL + "	AND P.hosp_fac_type_cd <>'11' \n";
+      sSQL = sSQL + "	AND SUBSTR(P.prvdr_num,3,2) <> '13' \n";
+    }
+
+    sSQL = sSQL + "			GROUP BY \n";
+
+    if (region != "") {
+      sSQL = sSQL + "				P.rgn_cd \n";
+    }
+    else if (state != "") {
+
+      sSQL = sSQL + "				P.state_cd) vlist \n";
+      sSQL = sSQL + "	where  ST.cd_id='" + state + "' \n";
+      sSQL = sSQL + "	and    ST.cd_id = vlist.state_cd \n";
+    }
+    else if (ssa_county_id != "") {
+      sSQL = sSQL + "				P.state_CD, \n";
+      sSQL = sSQL + "				P.state_rgn_cd \n";
+    }
+    else if (provider_num != "") {
+      sSQL = sSQL + "				P.prvdr_num \n";
+    }
+
+  }
+  return sSQL;
+}
+
+public String NatMakeSql(sasnode.SelectionCriteriaObject o, String numProvs, String national, String accred, String multiYear, String sYear, String begin_year, String end_year, String year_type, String sQtr, String region, String state, String ssa_county_id, String ssa_state_cd, String provider_num, String providersList, String deficiency_tag_array[], String surveyType, int sortBy) {
+  String sSQL;
+  int ii;
+
+  sSQL = "";
+
+  sSQL = sSQL + "			SELECT \n";
+  sSQL = sSQL + "				COUNT(DISTINCT P.prvdr_intrnl_num) AS nat_active_providers \n";
+  sSQL = sSQL + "			FROM \n";
+  sSQL = sSQL + "				provider_summary P, \n";
+
+  if (o.getSurvTypeArray() != null) {
+    sSQL = sSQL + "	survey_summary M, \n";
+  }
+
+  sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "FRM");
+
+  sSQL = sSQL + "				qtr_dates Q \n";
+  sSQL = sSQL + "			WHERE \n";
+  sSQL = sSQL + "				Q.year_type = '" + year_type + "' \n";
+  sSQL = sSQL + "				AND Q.year = '" + sYear + "' \n";
+  sSQL = sSQL + "				AND Q.qtr = '" + sQtr + "' \n";
+
+  if (o.getSurvTypeArray() != null) {
+    sSQL = sSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+    sSQL = sSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+    sSQL = sSQL + "	AND M.srvy_dt IS NOT NULL \n";
+    sSQL = sSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+
+    String display = "";
+    for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+      if (ii > 0) display = display + ", ";
+      if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+        display = display + "Q";
+      }
+      else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+        display = display + "T";
+      }
+    }
+
+    if (display.compareToIgnoreCase("Q") == 0) {
+      sSQL = sSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+    }
+    else if (display.compareToIgnoreCase("T") == 0) {
+      sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+    }
+    else {
+      sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+    }
+  }
+
+  sSQL = sSQL + "				AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+  sSQL = sSQL + "				AND P.orgnl_prtcptn_dt <= Q.end_dt \n";
+  sSQL = sSQL + "				AND ( P.trmntn_exprtn_dt >= Q.start_dt \n";
+  sSQL = sSQL + "					OR P.trmntn_exprtn_dt IS NULL ) \n";
+
+  sSQL = sSQL + "				AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+  sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+
+  if (o.getViewCah().compareTo("Y") == 0 && providersList.compareTo("01") == 0) {
+    sSQL = sSQL + "	AND (P.hosp_fac_type_cd ='11' \n";
+    sSQL = sSQL + "	OR SUBSTR(P.prvdr_num,3,2) = '13') \n";
+  }
+  else if (o.getViewCah().compareTo("Y,N") != 0 && providersList.compareTo("01") == 0) {
+    sSQL = sSQL + "	AND P.hosp_fac_type_cd <>'11' \n";
+    sSQL = sSQL + "	AND SUBSTR(P.prvdr_num,3,2) <> '13' \n";
+  }
+
+  return sSQL;
+}
+
+public String DetailMakeSql(sasnode.SelectionCriteriaObject o, String numProvs, String national, String accred, String multiYear, String sYear, String begin_year, String end_year, String year_type, String sQtr, String region, String state, String ssa_county_id, String ssa_state_cd, String provider_num, String providersList, String deficiency_tag_array[], String surveyType, int sortBy) {
+  String sSQL;
+  int ii;
+
+  sSQL = "";
+
+  sSQL = sSQL + "			SELECT \n";
+  sSQL = sSQL + "				DISTINCT P.PRVDR_NUM AS prvdr_num, \n";
+  sSQL = sSQL + "				P.FAC_NAME AS fac_name, \n";
+  sSQL = sSQL + "				P.ADDTNL_FAC_NAME AS addtnl_fac_name, \n";
+  sSQL = sSQL + "				P.ST_ADR AS st_adr, \n";
+  sSQL = sSQL + "				P.ADDTNL_ST_ADR AS addtnl_st_adr, \n";
+  sSQL = sSQL + "				P.CITY_NAME AS city_name, \n";
+  sSQL = sSQL + " 				P.state_cd AS state_cd, \n";
+  sSQL = sSQL + "				P.ZIP_CD AS zip_cd, \n";
+  sSQL = sSQL + "				P.ZIP4_CD AS zip4_cd, \n";
+  sSQL = sSQL + "				P.PHNE_NUM AS phne_num, \n";
+  sSQL = sSQL + "				P.FAC_EMAIL_TXT AS fac_email_txt, \n";
+  sSQL = sSQL + "				P.ORGNL_PRTCPTN_DT AS orgnl_prtcptn_dt, \n";
+  sSQL = sSQL + "				P.TRMNTN_EXPRTN_DT AS trmntn_exprtn_dt, \n";
+  sSQL = sSQL + "				INITCAP(COALESCE(C.CNTY_NAME, '')) AS county, \n";
+  sSQL = sSQL + "				P.RGN_CD AS rgn_cd, \n";
+  sSQL = sSQL + "				'(' || SUBSTR(R.cd_desc, 1, STRPOS(R.cd_desc, ' ') - 1) || ') ' || INITCAP(SUBSTR(R.cd_desc, STRPOS(R.cd_desc, ' ') + 1)) AS rgn_cd_desc, \n";
+  sSQL = sSQL + "				P.CLIA_FAC_TYPE_CD AS clia_fac_type_cd, \n";
+  sSQL = sSQL + "				P.BED_CNT AS bed_cnt, \n";
+  sSQL = sSQL + "				P.HOSPITAL_FREE AS hospital_free, \n";
+  sSQL = sSQL + "				CL.CHAIN_NAME AS chain_name, \n";
+  sSQL = sSQL + "				P.PRVDR_CTGRY_CD AS prvdr_ctgry_cd, \n";
+  sSQL = sSQL + "				PC.CD_DESC as prvdr_ctgry_cd_desc, \n";
+  sSQL = sSQL + "				CT.CRTFCTN_DT as crtfctn_dt, \n";
+  sSQL = sSQL + "				CT.CNTL_TYPE_CD AS cntl_type_cd, \n";
+  sSQL = sSQL + "				CASE \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('05') AND CT.CNTL_TYPE_CD in ('01', '02', '03') THEN 'Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('11') AND CT.CNTL_TYPE_CD in ('04') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('11') AND CT.CNTL_TYPE_CD in ('05', '06', '07') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('02', '03', '04', '10') AND CT.CNTL_TYPE_CD in ('01', '02', '03', '13') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('02', '03', '04', '10') AND CT.CNTL_TYPE_CD in ('04', '05', '06') THEN 'Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('02', '03', '04', '10') AND CT.CNTL_TYPE_CD in ('07', '08', '09', '10', '11', '12') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('11') AND CT.CNTL_TYPE_CD in ('01') THEN 'Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('11') AND CT.CNTL_TYPE_CD in ('02') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('11') AND CT.CNTL_TYPE_CD in ('03', '04', '05', '06', '07') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('01') AND CT.CNTL_TYPE_CD in ('01', '02', '03') THEN 'Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('01') AND CT.CNTL_TYPE_CD in ('04') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('01') AND CT.CNTL_TYPE_CD in ('05', '06', '07', '08') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('09') AND CT.CNTL_TYPE_CD in ('01') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('09') AND CT.CNTL_TYPE_CD in ('02') THEN 'Not For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('09') AND CT.CNTL_TYPE_CD in ('03') THEN 'Public' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('16') AND CT.CNTL_TYPE_CD in ('01', '02', '03') THEN 'Voluntary Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('16') AND CT.CNTL_TYPE_CD in ('04', '05', '06', '07') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('16') AND CT.CNTL_TYPE_CD in ('08', '09', '10', '11') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('16') AND CT.CNTL_TYPE_CD in ('12') THEN 'Combination' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('16') AND CT.CNTL_TYPE_CD in ('13') THEN 'Other' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('01') THEN 'Private Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('02') THEN 'Proprietary' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('03') THEN 'Religious Affiliation' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('04', '05') THEN 'For Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('06') THEN 'Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('07') THEN 'Corporation' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('08') THEN 'State' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('06') AND CT.CNTL_TYPE_CD in ('09') THEN 'Local Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('03') THEN 'State Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('04') THEN 'Local Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('05') THEN 'Federal Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('1A') THEN 'For Profit Individual' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('1B') THEN 'For Profit Corporation' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('1C') THEN 'For Profit Partnership' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('2A') THEN 'Non-Profit Individual' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('2B') THEN 'Non-Profit Corporation' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('12') AND CT.CNTL_TYPE_CD in ('2C') THEN 'Non-Profit Partnership' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('15') AND CT.CNTL_TYPE_CD in ('01') THEN 'Proprietary' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('15') AND CT.CNTL_TYPE_CD in ('02') THEN 'Non-Profit' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('15') AND CT.CNTL_TYPE_CD in ('03') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('01') THEN 'Religious Affiliation' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('02') THEN 'Private' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('03') THEN 'Other' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('04') THEN 'Proprietary' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('05') THEN 'Government - City' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('06') THEN 'Government - County' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('07') THEN 'Government - State' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('08') THEN 'Government - Federal' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('09') THEN 'Government - Other' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('22') AND CT.CNTL_TYPE_CD in ('10') THEN 'Unknown' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('14') AND CT.CNTL_TYPE_CD in ('01') THEN 'Proprietary' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('14') AND CT.CNTL_TYPE_CD in ('02') THEN 'Non Profit Church' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('14') AND CT.CNTL_TYPE_CD in ('03') THEN 'Non Profit Other' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('14') AND CT.CNTL_TYPE_CD in ('04') THEN 'Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('08') AND CT.CNTL_TYPE_CD in ('01') THEN 'Voluntary Non Profit Other Than Church' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('08') AND CT.CNTL_TYPE_CD in ('02') THEN 'Voluntary Non Profit Church' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('08') AND CT.CNTL_TYPE_CD in ('03') THEN 'State Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('08') AND CT.CNTL_TYPE_CD in ('04') THEN 'Local Government' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('08') AND CT.CNTL_TYPE_CD in ('05') THEN 'Combination Govt and Voluntary' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('08') AND CT.CNTL_TYPE_CD in ('06') THEN 'Proprietary' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('07') AND CT.CNTL_TYPE_CD in ('01') THEN 'Individual' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('07') AND CT.CNTL_TYPE_CD in ('02') THEN 'Partnership' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('07') AND CT.CNTL_TYPE_CD in ('03') THEN 'Corporation' \n";
+  sSQL = sSQL + "					WHEN P.PRVDR_CTGRY_CD in ('07') AND CT.CNTL_TYPE_CD in ('04') THEN 'Other Than Private' \n";
+  sSQL = sSQL + "					ELSE 'Unrecognized' \n";
+  sSQL = sSQL + "				END cntl_type_desc \n";
+  sSQL = sSQL + "			FROM \n";
+  sSQL = sSQL + "				category_lookup PC, \n";
+  sSQL = sSQL + "				csp_cms_rgn_cd R, \n";
+  sSQL = sSQL + "				provider_summary P \n";
+  sSQL = sSQL + "				LEFT JOIN chain_provider CL ON CL.prvdr_num = P.PRVDR_NUM \n";
+  sSQL = sSQL + "				LEFT JOIN csp_cnty_cd C ON C.ssa_state_cd = P.ssa_state_cd AND C.ssa_cnty_cd = P.ssa_cnty_cd \n";
+  sSQL = sSQL + "				LEFT JOIN certification_summary CT ON CT.prvdr_intrnl_num = P.prvdr_intrnl_num \n";
+  sSQL = sSQL + "				AND CT.crtfctn_dt = (SELECT max(CERT.crtfctn_dt) FROM certification_summary CERT WHERE CERT.prvdr_intrnl_num = CT.prvdr_intrnl_num), \n";
+
+  if (o.getSurvTypeArray() != null) {
+    sSQL = sSQL + "	survey_summary M, \n";
+  }
+
+  sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "FRM");
+
+  sSQL = sSQL + "				qtr_dates Q \n";
+  sSQL = sSQL + "			WHERE \n";
+  sSQL = sSQL + "				Q.year_type = '" + year_type + "' \n";
+  sSQL = sSQL + "				AND Q.year = '" + sYear + "' \n";
+  sSQL = sSQL + "				AND Q.qtr = '" + sQtr + "' \n";
+
+  if (o.getSurvTypeArray() != null) {
+    sSQL = sSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+    sSQL = sSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+    sSQL = sSQL + "	AND M.srvy_dt IS NOT NULL \n";
+    sSQL = sSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+
+    String display = "";
+    for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+      if (ii > 0) display = display + ", ";
+      if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+        display = display + "Q";
+      }
+      else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+        display = display + "T";
+      }
+    }
+
+    if (display.compareToIgnoreCase("Q") == 0) {
+      sSQL = sSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+    }
+    else if (display.compareToIgnoreCase("T") == 0) {
+      sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+    }
+    else {
+      sSQL = sSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+    }
+  }
+
+  sSQL = sSQL + "				AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+  sSQL = sSQL + "				AND P.orgnl_prtcptn_dt <= Q.end_dt \n";
+  sSQL = sSQL + "				AND ( P.trmntn_exprtn_dt >= Q.start_dt \n";
+  sSQL = sSQL + "					OR P.trmntn_exprtn_dt IS NULL ) \n";
+
+  sSQL = sSQL + "				AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+  
+  sSQL = sSQL + "				AND P.PRVDR_CTGRY_CD = PC.prvdr_ctgry_cd \n";
+  sSQL = sSQL + "				AND R.cd_id = P.rgn_cd \n";
+
+  sSQL = sSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+
+  if (o.getViewCah().compareTo("Y") == 0 && providersList.compareTo("01") == 0) {
+    sSQL = sSQL + "	AND (P.hosp_fac_type_cd ='11' \n";
+    sSQL = sSQL + "	OR SUBSTR(P.prvdr_num,3,2) = '13') \n";
+  }
+  else if (o.getViewCah().compareTo("Y,N") != 0 && providersList.compareTo("01") == 0) {
+    sSQL = sSQL + "	AND P.hosp_fac_type_cd <>'11' \n";
+    sSQL = sSQL + "	AND SUBSTR(P.prvdr_num,3,2) <> '13' \n";
+  }
+  
+  sSQL = sSQL + "ORDER BY \n";
+  sSQL = sSQL + "	prvdr_num asc, crtfctn_dt desc \n";
+
+  return sSQL;
+}
+
+public String activeMakeSql2(sasnode.SelectionCriteriaObject o, String which, String national, String accred, String multiYear, String sYear, String begin_year, String end_year, String year_type, String sQtr, String region, String state, String ssa_county_id, String ssa_state_cd, String providersList, String deficiency_tag_array[], String surveyType, int sortBy) {
+  String mSQL;
+  int ii;
+  mSQL = "";
+
+  mSQL = mSQL + " SELECT \n";
+
+  if (national == "") {
+    if (region == "") {
+      mSQL = mSQL + "	cd_id, region, \n";
+    }
+
+    else if (region == "all") {
+      mSQL = mSQL + "	csc.cd_id, \n";
+      mSQL = mSQL + "	INITCAP(csc.cd_desc) AS state, \n";
+      if (which.compareToIgnoreCase("2") == 0) {
+        mSQL = mSQL + "	COALESCE(AA.num_clients, 0) as num_clients \n";
+
+      }
+      else if (which.compareToIgnoreCase("0") == 0) {
+        mSQL = mSQL + "	COALESCE(AA.num_residents, 0) as num_residents \n";
+
+      }
+      mSQL = mSQL + "	FROM \n";
+      mSQL = mSQL + "	( SELECT \n";
+      mSQL = mSQL + "	cd_id, state, \n";
+    }
+
+    else if (state == "") {
+      mSQL = mSQL + "	cd_id, state, \n";
+    }
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	county, \n";
+      mSQL = mSQL + "	ssa_state_cd,  \n";
+      mSQL = mSQL + "	ssa_cnty_cd,  \n";
+    }
+    else if (state != "") {
+      mSQL = mSQL + "	X.prvdr_intrnl_num,  \n";
+      mSQL = mSQL + "	prvdr_num, \n";
+      mSQL = mSQL + "	provider, \n";
+    }
+
+    if (which.compareToIgnoreCase("2") == 0) {
+
+      mSQL = mSQL + " SUM(C.CNSUS_RSDNT_CNT) as num_clients \n";
+    }
+
+    else if (which.compareToIgnoreCase("0") == 0) {
+      mSQL = mSQL + " SUM(C.CNSUS_RSDNT_CNT) as num_residents \n";
+    }
+  }
+  mSQL = mSQL + " FROM ( \n";
+
+  mSQL = mSQL + " SELECT DISTINCT\n";
+
+  if (national == "") {
+    if (region == "") {
+      mSQL = mSQL + "	R.cd_id,\n";
+      mSQL = mSQL + "	'(' || SUBSTR(R.cd_desc, 1, STRPOS(R.cd_desc, ' ') - 1) || ') ' || INITCAP(SUBSTR(R.cd_desc, STRPOS(R.cd_desc, ' ') + 1)) AS region, \n";
+    }
+    else if (state == "") {
+      mSQL = mSQL + "	ST.cd_id,\n";
+      mSQL = mSQL + "	INITCAP(ST.cd_desc) AS state,\n";
+    }
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	INITCAP(COALESCE(C.cd_desc, '')) || ' (' || P.state_rgn_cd || ')' AS county,  \n";
+      mSQL = mSQL + "	P.state_cd AS ssa_state_cd,  \n";
+      mSQL = mSQL + "	P.state_rgn_cd AS ssa_cnty_cd,  \n";
+    }
+    else if (state != "") {
+      mSQL = mSQL + "	P.fac_name as provider,\n";
+    }
+
+    mSQL = mSQL + "	P.prvdr_intrnl_num,  \n";
+    mSQL = mSQL + "	P.prvdr_num, \n";
+    mSQL = mSQL + " MAX(C2.crtfctn_dt) as crtfctn_dt  \n";
+  }
+  mSQL = mSQL + "FROM \n";
+
+  if (national == "") {
+    if (region == "") {
+      mSQL = mSQL + "	csp_cms_rgn_cd R, \n";
+    }
+    else if (state == "") {
+      mSQL = mSQL + "	csp_state_cd ST, \n";
+    }
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	csp_state_rgn_cd C, \n";
+    }
+
+    if (o.getExtentOfSurvey() != "") {
+
+      mSQL = mSQL + "	(SELECT \n";
+      if (multiYear.compareToIgnoreCase("YES") == 0) mSQL = mSQL + "		Q.year, \n";
+
+      mSQL = mSQL + " 	CT.prvdr_intrnl_num \n";
+      mSQL = mSQL + "	FROM certification_summary CT, \n";
+      mSQL = mSQL + " qtr_dates Q \n";
+      mSQL = mSQL + " WHERE \n";
+      mSQL = mSQL + "	Q.year_type = '" + year_type + "' \n";
+      if (multiYear.compareToIgnoreCase("YES") == 0) {
+        mSQL = mSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+      }
+      else {
+        mSQL = mSQL + "		AND Q.year = '" + sYear + "' \n";
+      }
+      mSQL = mSQL + "	AND Q.qtr = '" + sQtr + "' \n";
+      mSQL = mSQL + "	AND CT.CRTFCTN_DT >= Q.start_dt \n";
+      mSQL = mSQL + "	AND CT.CRTFCTN_DT <= Q.end_dt \n";
+      mSQL = mSQL + "	AND CT.CRTFCTN_DT IS NOT NULL \n";
+      mSQL = mSQL + "	AND CT.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+      mSQL = mSQL + SelectionCriteriaSQLNew(o, "C", providersList, deficiency_tag_array, "S", surveyType);
+
+      mSQL = mSQL + " GROUP BY \n";
+      if (multiYear.compareToIgnoreCase("YES") == 0) mSQL = mSQL + "		Q.year, \n";
+
+      mSQL = mSQL + "	CT.prvdr_intrnl_num \n";
+      mSQL = mSQL + "	) CERT, \n";
+    }
+    if (o.getScopeSeverity() != "" || o.getDeficiencyTag() != "" || o.getRegulatoryGroup() != "" || o.getEmtalaGroup() != "" || o.getSubstandardQuality().compareTo("YES") == 0 || o.getLevelList().compareTo("") != 0 || o.getJeopardyFl().compareTo("") != 0) {
+
+      mSQL = mSQL + "	(SELECT \n";
+      if (multiYear.compareToIgnoreCase("YES") == 0) mSQL = mSQL + "		Q.year, \n";
+      mSQL = mSQL + "		D.prvdr_intrnl_num \n";
+      mSQL = mSQL + "	FROM deficiency_summary D, \n";
+      mSQL = mSQL + "	provider_summary P, \n";
+
+      if (o.getSurvTypeArray() != null) {
+        mSQL = mSQL + "	survey_summary M, \n";
+      }
+
+      mSQL = mSQL + " qtr_dates Q \n";
+      mSQL = mSQL + " WHERE \n";
+      mSQL = mSQL + "	Q.year_type = '" + year_type + "' \n";
+
+      if (multiYear.compareToIgnoreCase("YES") == 0) {
+        mSQL = mSQL + "		AND Q.year BETWEEN '" + begin_year + "' AND '" + end_year + "' \n";
+      }
+      else {
+        mSQL = mSQL + "		AND Q.year = '" + sYear + "' \n";
+      }
+      mSQL = mSQL + "	AND Q.qtr = '" + sQtr + "' \n";
+
+      if (o.getSurvTypeArray() != null) {
+        mSQL = mSQL + "	AND M.srvy_dt >= Q.start_dt \n";
+        mSQL = mSQL + "	AND M.srvy_dt <= Q.end_dt \n";
+        mSQL = mSQL + "	AND M.srvy_dt IS NOT NULL \n";
+        mSQL = mSQL + "	AND P.prvdr_intrnl_num = M.prvdr_intrnl_num	\n";
+        mSQL = mSQL + "	AND D.evnt_id = M.evnt_id \n";
+
+        String display = "";
+        for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+          if (ii > 0) display = display + ", ";
+          if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+            display = display + "Q";
+          }
+          else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+            display = display + "T";
+          }
+        }
+
+        if (display.compareToIgnoreCase("Q") == 0) {
+          mSQL = mSQL + "	AND M.qis_srvy_sw in ('Y') \n";
+        }
+        else if (display.compareToIgnoreCase("T") == 0) {
+          mSQL = mSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y')) \n";
+        }
+        else {
+          mSQL = mSQL + "	AND (M.qis_srvy_sw is null or M.qis_srvy_sw not in ('Y') or M.qis_srvy_sw in ('Y')) \n";
+        }
+      }
+
+      mSQL = mSQL + "	AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+      mSQL = mSQL + "	AND D.srvy_dt >= Q.start_dt \n";
+      mSQL = mSQL + "	AND D.srvy_dt <= Q.end_dt \n";
+      mSQL = mSQL + "	AND D.srvy_dt IS NOT NULL \n";
+
+      if (o.getDeficiencyTag().indexOf("K") != -1) {
+        mSQL = mSQL + " AND (D.srvy_type_cd='H' OR D.srvy_type_cd = 'L')\n";
+        mSQL = mSQL + "	AND (D.srvy_cyc_cd = 'C' OR D.srvy_cyc_cd = 'S') \n";
+      }
+      else {
+        mSQL = mSQL + " AND D.srvy_type_cd='H' \n";
+        mSQL = mSQL + "	AND (D.srvy_cyc_cd = 'C' OR D.srvy_cyc_cd = 'S') \n";
+      }
+
+      mSQL = mSQL + "	AND P.prvdr_intrnl_num=D.prvdr_intrnl_num \n";
+
+      mSQL = mSQL + "	AND (D.srvy_dt < P.trmntn_exprtn_dt \n";
+      mSQL = mSQL + "	OR P.trmntn_exprtn_dt IS NULL) \n";
+      mSQL = mSQL + "	AND ((D.srvy_prpse_cd > '1' AND D.srvy_dt >= P.orgnl_prtcptn_dt) \n";
+      mSQL = mSQL + "	OR (D.srvy_prpse_cd = '1') \n";
+      mSQL = mSQL + "	OR (D.srvy_prpse_cd is null AND D.srvy_dt >= P.orgnl_prtcptn_dt)) \n";
+      mSQL = mSQL + SelectionCriteriaSQLNew(o, "D", providersList, deficiency_tag_array, "D", surveyType);
+
+      mSQL = mSQL + " GROUP BY \n";
+      if (multiYear.compareToIgnoreCase("YES") == 0) mSQL = mSQL + "		Q.year, \n";
+
+      mSQL = mSQL + "	D.prvdr_intrnl_num \n";
+      mSQL = mSQL + "	) DEF, \n";
+    }
+
+    mSQL = mSQL + "	provider_summary P, \n";
+
+    if (o.getSurvTypeArray() != null) {
+      mSQL = mSQL + "	survey_summary S, \n";
+    }
+    else {
+      mSQL = mSQL + "	survey_summary S, \n";
+    }
+
+    mSQL = mSQL + SelectionCriteriaDeemedChainSQLNew(o, "FRM");
+
+    mSQL = mSQL + "	certification_summary C2, \n";
+    mSQL = mSQL + " qtr_dates Q \n";
+  }
+
+  mSQL = mSQL + "WHERE \n";
+  mSQL = mSQL + "		Q.year_type = '" + year_type + "' \n";
+  mSQL = mSQL + "		AND Q.year = '" + sYear + "' \n";
+  mSQL = mSQL + "		AND Q.qtr = '" + sQtr + "' \n";
+
+  if (o.getSurvTypeArray() != null) {
+    mSQL = mSQL + "	AND S.srvy_dt >= Q.start_dt \n";
+    mSQL = mSQL + "	AND S.srvy_dt <= Q.end_dt \n";
+    mSQL = mSQL + "	AND S.srvy_dt IS NOT NULL \n";
+    mSQL = mSQL + "	AND P.prvdr_intrnl_num = S.prvdr_intrnl_num	\n";
+
+    String display = "";
+    for (ii = 0; ii < o.getSurvTypeArray().length; ii++) {
+      if (ii > 0) display = display + ", ";
+      if (o.getSurvTypeArray()[ii].compareTo("Q") == 0) {
+        display = display + "Q";
+      }
+      else if (o.getSurvTypeArray()[ii].compareTo("T") == 0) {
+        display = display + "T";
+      }
+    }
+
+    if (display.compareToIgnoreCase("Q") == 0) {
+      mSQL = mSQL + "	AND S.qis_srvy_sw in ('Y') \n";
+    }
+    else if (display.compareToIgnoreCase("T") == 0) {
+      mSQL = mSQL + "	AND (S.qis_srvy_sw is null or S.qis_srvy_sw not in ('Y')) \n";
+    }
+    else {
+      mSQL = mSQL + "	AND (S.qis_srvy_sw is null or S.qis_srvy_sw not in ('Y') or S.qis_srvy_sw in ('Y')) \n";
+    }
+  }
+
+  mSQL = mSQL + "		AND P.prvdr_ctgry_cd IN (" + param_w_quotes(providersList) + ") \n";
+  mSQL = mSQL + "		AND P.orgnl_prtcptn_dt <= Q.end_dt \n";
+  mSQL = mSQL + "		AND ( P.trmntn_exprtn_dt >= Q.start_dt \n";
+  mSQL = mSQL + "		OR P.trmntn_exprtn_dt IS NULL )\n";
+  mSQL = mSQL + "		AND C2.crtfctn_dt <= Q.end_dt \n";
+  mSQL = mSQL + "		AND C2.crtfctn_dt IS NOT NULL \n";
+  mSQL = mSQL + "		AND S.srvy_cyc_cd = 'S' \n";
+
+  if (o.getDeficiencyTag().indexOf("K") != -1) {
+    mSQL = mSQL + "		AND S.srvy_type_cd IN ('H', 'L') \n";
+  }
+  else {
+    mSQL = mSQL + "		AND S.srvy_type_cd = 'H' \n";
+  }
+  mSQL = mSQL + "		AND ( S.srvy_prpse_cd != '5' OR S.srvy_prpse_cd IS NULL ) \n";
+
+  mSQL = mSQL + "		AND (S.srvy_dt < P.trmntn_exprtn_dt \n";
+  mSQL = mSQL + "		OR P.trmntn_exprtn_dt IS NULL) \n";
+  mSQL = mSQL + "		AND ((S.srvy_prpse_cd > '1' AND S.srvy_dt >= P.orgnl_prtcptn_dt) \n";
+  mSQL = mSQL + "		OR (S.srvy_prpse_cd = '1') \n";
+  mSQL = mSQL + "		OR (S.srvy_prpse_cd is null AND S.srvy_dt >= P.orgnl_prtcptn_dt)) \n";
+  mSQL = mSQL + "		AND S.PRVDR_INTRNL_NUM = P.PRVDR_INTRNL_NUM \n";
+  mSQL = mSQL + "		AND S.PRVDR_INTRNL_NUM = C2.PRVDR_INTRNL_NUM \n";
+  mSQL = mSQL + "		AND S.derive_crtfctn_dt = C2.crtfctn_dt \n";
+
+  if (o.getExtentOfSurvey() != "") {
+    if (multiYear.compareToIgnoreCase("YES") == 0) mSQL = mSQL + "	AND Q.year = CERT.year \n";
+
+    mSQL = mSQL + "	AND P.prvdr_intrnl_num=CERT.prvdr_intrnl_num \n";
+  }
+  if (o.getScopeSeverity() != "" || o.getDeficiencyTag() != "" || o.getRegulatoryGroup() != "" || o.getEmtalaGroup() != "" || o.getSubstandardQuality().compareTo("YES") == 0 || o.getLevelList().compareTo("") != 0 || o.getJeopardyFl().compareTo("") != 0) {
+    if (multiYear.compareToIgnoreCase("YES") == 0) mSQL = mSQL + "	AND Q.year = DEF.year \n";
+
+    mSQL = mSQL + "	AND P.prvdr_intrnl_num=DEF.prvdr_intrnl_num \n";
+  }
+  mSQL = mSQL + SelectionCriteriaSQLNew(o, "P", providersList, deficiency_tag_array, "S", surveyType);
+
+  if (national == "") {
+    if (region == "") {
+      mSQL = mSQL + "	AND R.cd_id = P.rgn_cd \n";
+
+      mSQL = mSQL + " AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+      mSQL = mSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+    else if (state == "") {
+      if (region.compareToIgnoreCase("all") != 0) mSQL = mSQL + "	AND P.rgn_cd = '" + region + "' \n";
+      mSQL = mSQL + "	AND ST.cd_id = P.state_cd \n";
+
+      mSQL = mSQL + " AND P.state_cd not in ('CN', 'FN', 'MX') \n";
+
+      mSQL = mSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	AND P.state_cd = '" + state + "' \n";
+      mSQL = mSQL + "	AND C.state_cd = P.state_cd  \n";
+      mSQL = mSQL + "	AND C.state_rgn_cd = P.state_rgn_cd  \n";
+
+      mSQL = mSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+    else if (state != "") {
+      mSQL = mSQL + "	AND P.state_cd = '" + state + "' \n";
+      if (ssa_county_id != "" && ssa_county_id.compareTo("0") != 0) mSQL = mSQL + "AND P.state_rgn_cd = '" + ssa_county_id + "' \n";
+
+      mSQL = mSQL + SelectionCriteriaDeemedChainSQLNew(o, "SEL");
+    }
+  }
+  if (national == "") {
+    mSQL = mSQL + "	GROUP BY \n";
+
+    if (region == "") {
+      mSQL = mSQL + "	R.cd_id, \n";
+      mSQL = mSQL + "	R.cd_desc, \n";
+    }
+    else if (state == "") {
+      mSQL = mSQL + "	ST.cd_id,  \n";
+      mSQL = mSQL + "	ST.cd_desc,  \n";
+    }
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	C.cd_desc,P.state_rgn_cd, \n";
+      mSQL = mSQL + "	P.state_cd, \n";
+      mSQL = mSQL + "	P.state_rgn_cd, \n";
+    }
+    else if (state != "") {
+      mSQL = mSQL + "	P.fac_name, \n";
+    }
+    mSQL = mSQL + "	P.prvdr_intrnl_num , \n";
+    mSQL = mSQL + "	P.prvdr_num \n";
+    mSQL = mSQL + " )X,certification_summary C \n";
+    mSQL = mSQL + " WHERE X.PRVDR_INTRNL_NUM = C.PRVDR_INTRNL_NUM \n";
+    mSQL = mSQL + " AND X.crtfctn_dt=C.crtfctn_dt \n";
+  }
+  if (national == "") {
+    mSQL = mSQL + "	GROUP BY \n";
+
+    if (region == "") {
+      mSQL = mSQL + "	cd_id, \n";
+      mSQL = mSQL + "	region \n";
+    }
+
+    else if (region == "all") {
+      mSQL = mSQL + "	cd_id,  \n";
+      mSQL = mSQL + "	state  \n";
+      mSQL = mSQL + "	)AA, \n";
+      mSQL = mSQL + "	csp_state_cd csc \n";
+      mSQL = mSQL + "	WHERE \n";
+      mSQL = mSQL + "	csc.cd_id = AA.cd_id \n";
+
+      if (providersList.compareTo("05") == 0) {
+
+        mSQL = mSQL + "	AND csc.cd_id not in ('CN', 'FN', 'MX') \n";
+      }
+      else if (providersList.compareTo("11") == 0) {
+
+        mSQL = mSQL + "	AND csc.cd_id not in ('CN', 'FN', 'MX') \n";
+      }
+      else if (providersList.compareTo("01") == 0) {
+
+        mSQL = mSQL + "	AND csc.cd_id not in ('CN','FN','MX') \n";
+
+      }
+      else if (providersList.compareTo("09") == 0) {
+
+        mSQL = mSQL + "	AND csc.cd_id not in ('CN','FN','MX') \n";
+      }
+
+      else if (providersList.compareTo("16") == 0) {
+
+        mSQL = mSQL + "	AND csc.cd_id not in ('CN', 'FN', 'MX') \n";
+      }
+
+      else {
+
+        mSQL = mSQL + "	AND csc.cd_id not in ('CN', 'FN', 'MX') \n";
+      }
+
+    }
+
+    else if (state == "") {
+      mSQL = mSQL + "	cd_id,  \n";
+      mSQL = mSQL + "	state  \n";
+    }
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	county , \n";
+      mSQL = mSQL + "	ssa_state_cd, \n";
+      mSQL = mSQL + "	ssa_cnty_cd \n";
+    }
+    else if (state != "") {
+      mSQL = mSQL + "	X.prvdr_intrnl_num , \n";
+      mSQL = mSQL + "	provider, \n";
+      mSQL = mSQL + "	prvdr_num \n";
+    }
+
+    mSQL = mSQL + "	ORDER BY \n";
+    if (region == "") {
+      mSQL = mSQL + "	cd_id \n";
+    }
+
+    else if (state == "") {
+      if (sortBy == 2) {
+        mSQL = mSQL + "	state desc \n";
+      }
+      else {
+        mSQL = mSQL + " state \n";
+      }
+    }
+
+    else if (ssa_county_id == "") {
+      mSQL = mSQL + "	county \n";
+    }
+    else if (state != "") {
+      mSQL = mSQL + "provider \n";
+    }
+  }
+  return mSQL;
+}
+%>
